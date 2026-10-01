@@ -1,5 +1,8 @@
 # DashBite — Simple Stage-by-Stage ML Pipeline
 
+> Based on the [DashBite teaching demo](https://github.com/ammylin/TestingAndContainerizationDemo)
+> by Kedar and Ammy Lin, introduced in class.
+
 Teaching demo of a modular data + ML application. **DashBite** predicts whether a food-delivery order will be **late**.
 
 No containers. Stages are separate Python modules that share folders under `data/`. Training and inference are **independent processes** coupled only by timestamped checkpoints in `data/models/`. Inference always uses the **newest** checkpoint.
