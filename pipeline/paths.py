@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from pipeline.config import PROJECT_ROOT
 
 __all__ = [
     "PROJECT_ROOT",
+    "DATA_ROOT_ENV",
     "DATA_SUBDIRS",
     "data_root",
     "raw_dir",
@@ -19,12 +21,35 @@ __all__ = [
 ]
 
 
+DATA_ROOT_ENV = "DATA_ROOT"
 DATA_SUBDIRS = ("raw", "features", "models", "predictions", "quality")
 
 
 def data_root(base: Path | None = None) -> Path:
-    """Return the data root (default: <project>/data)."""
-    return (base or PROJECT_ROOT) / "data"
+    """Return the data root.
+
+    An explicit ``base`` is a project root and wins: data lives in ``base/data``.
+    Otherwise the ``DATA_ROOT`` environment variable, read at call time, is the
+    data directory itself. Unset (or empty) keeps the default ``<project>/data``.
+
+    ``DATA_ROOT`` must be absolute once a leading ``~`` is expanded. A relative
+    value raises ``ValueError``: every stage would resolve it against its own
+    working directory and the stages could silently stop sharing data.
+    """
+    if base is not None:
+        return base / "data"
+    env_root = os.environ.get(DATA_ROOT_ENV)
+    if not env_root:
+        return PROJECT_ROOT / "data"
+    # os.path.expanduser leaves "~" in place when there is no home to expand to.
+    root = Path(os.path.expanduser(env_root))
+    if not root.is_absolute():
+        raise ValueError(
+            f"{DATA_ROOT_ENV} must be an absolute path (a leading ~ is expanded), "
+            f"got {env_root!r}. A relative path would resolve against each "
+            "stage's working directory."
+        )
+    return root
 
 
 def raw_dir(base: Path | None = None) -> Path:

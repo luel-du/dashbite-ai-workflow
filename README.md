@@ -39,7 +39,7 @@ make help          # list targets
 make test          # full pytest gate
 make run           # start all stages in background + dashboard
 make stop          # stop background pipeline
-make clean-data    # wipe runtime CSVs/checkpoints under data/
+make clean-data    # wipe runtime CSVs/checkpoints under data/ (or DATA_ROOT if set)
 ```
 
 Foreground single stages: `make simulator`, `make preprocess`, `make train`, `make infer`, `make dashboard`.

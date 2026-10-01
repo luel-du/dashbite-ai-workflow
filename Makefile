@@ -38,7 +38,7 @@ help:
 	@echo "  make dashboard            Run Streamlit on :8501 (foreground)"
 	@echo "  make run                  Start all stages in background + dashboard"
 	@echo "  make stop                 Stop background pipeline processes"
-	@echo "  make clean-data           Remove runtime files under data/ (keep .gitkeep)"
+	@echo "  make clean-data           Remove runtime files under DATA_ROOT, default data/ (keep .gitkeep)"
 	@echo "  make clean                clean-data + logs + pytest cache"
 	@echo ""
 	@echo "Env defaults: TRAIN_EVERY_N_EVENTS=$(TRAIN_EVERY_N_EVENTS) BATCH_SIZE=$(BATCH_SIZE)"
@@ -107,13 +107,16 @@ stop:
 	@pkill -f "streamlit run pipeline/dashboard/app.py" 2>/dev/null || true
 	@echo "Pipeline stopped."
 
+# Cleans the directory the stages write to: DATA_ROOT if set, else data/.
+# pipeline.paths resolves it, so the rules (and errors) match the pipeline's.
 clean-data:
-	@rm -f data/raw/*.csv \
-		data/features/features_*.csv data/features/.done_* \
-		data/models/checkpoint_*.joblib data/models/metrics_*.json data/models/train_state.json \
-		data/predictions/predictions_*.csv \
-		data/quality/*.csv
-	@echo "Runtime data cleared."
+	@dir="$$($(PYTHON) -c 'from pipeline.paths import data_root; print(data_root())')" || exit 1; \
+	rm -f "$$dir"/raw/orders_*.csv \
+		"$$dir"/features/features_*.csv "$$dir"/features/.done_* \
+		"$$dir"/models/checkpoint_*.joblib "$$dir"/models/metrics_*.json "$$dir"/models/train_state.json \
+		"$$dir"/predictions/predictions_*.csv \
+		"$$dir"/quality/batch_quality.csv; \
+	echo "Runtime data cleared in $$dir"
 
 clean: clean-data
 	@rm -rf $(LOG_DIR) .pytest_cache

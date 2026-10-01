@@ -11,7 +11,7 @@ import streamlit as st
 from pipeline.dashboard.biz_metrics import at_risk_order_value, late_rate
 from pipeline.dashboard.ml_metrics import sample_volume, score_summary
 from pipeline.dashboard.quality_metrics import field_failure_totals, throughput_summary
-from pipeline.paths import PROJECT_ROOT, features_dir, predictions_dir, quality_dir
+from pipeline.paths import features_dir, predictions_dir, quality_dir
 from pipeline.preprocess import QUALITY_LOG
 
 
@@ -43,7 +43,7 @@ def main() -> None:
 
     page = st.sidebar.radio("Page", ["Model Pulse", "Ops Control"])
     auto = st.sidebar.checkbox("Auto-refresh (2s)", value=True)
-    base = PROJECT_ROOT
+    base = None  # resolve via DATA_ROOT, else <project>/data
     features = load_features(base)
     predictions = load_predictions(base)
     quality = load_quality_log(base)
