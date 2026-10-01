@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -10,6 +9,7 @@ import pandas as pd
 
 from pipeline.config import Config, load_config
 from pipeline.paths import ensure_data_dirs, features_dir, quality_dir, raw_dir
+from pipeline.runtime import run_polling_loop
 
 REQUIRED_COLUMNS = [
     "order_id",
@@ -162,10 +162,12 @@ def process_new_raw_files(base: Path | None = None) -> list[Path]:
 def run_loop(cfg: Config | None = None, base: Path | None = None) -> None:
     cfg = cfg or load_config()
     ensure_data_dirs(base)
-    print("DashBite preprocess started")
-    while True:
-        process_new_raw_files(base=base)
-        time.sleep(cfg.poll_interval_seconds)
+    run_polling_loop(
+        lambda: process_new_raw_files(base=base),
+        cfg.poll_interval_seconds,
+        "preprocess",
+        banner="DashBite preprocess started",
+    )
 
 
 def main() -> None:

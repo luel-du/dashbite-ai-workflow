@@ -13,6 +13,7 @@ import pandas as pd
 
 from pipeline.config import Config, load_config
 from pipeline.paths import ensure_data_dirs, features_dir, models_dir, predictions_dir
+from pipeline.runtime import run_polling_loop
 
 FEATURE_COLUMNS = ["distance_km", "prep_minutes"]
 
@@ -107,17 +108,24 @@ def run_once(
 def run_loop(cfg: Config | None = None, base: Path | None = None) -> None:
     cfg = cfg or load_config()
     ensure_data_dirs(base)
-    print("DashBite inference started (independent read path)")
     warned = [False]
     loaded_name: str | None = None
-    while True:
+
+    def step() -> None:
+        nonlocal loaded_name
         ckpt = newest_checkpoint(base)
         if ckpt is not None and ckpt.name != loaded_name:
             print(f"using checkpoint {ckpt.name}")
             loaded_name = ckpt.name
             warned[0] = False
         run_once(cfg=cfg, base=base, _warned_no_ckpt=warned)
-        time.sleep(cfg.poll_interval_seconds)
+
+    run_polling_loop(
+        step,
+        cfg.poll_interval_seconds,
+        "infer",
+        banner="DashBite inference started (independent read path)",
+    )
 
 
 def main() -> None:

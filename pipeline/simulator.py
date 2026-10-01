@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -12,6 +11,7 @@ import pandas as pd
 
 from pipeline.config import Config, load_config
 from pipeline.paths import ensure_data_dirs, raw_dir
+from pipeline.runtime import run_polling_loop
 
 RAW_COLUMNS = [
     "order_id",
@@ -122,11 +122,18 @@ def run_loop(cfg: Config | None = None, base: Path | None = None) -> None:
     cfg = cfg or load_config()
     ensure_data_dirs(base)
     tick = 0
-    print("DashBite order feed started")
-    while True:
+
+    def step() -> None:
+        nonlocal tick
         run_once(cfg=cfg, base=base, tick=tick)
         tick += 1
-        time.sleep(cfg.poll_interval_seconds)
+
+    run_polling_loop(
+        step,
+        cfg.poll_interval_seconds,
+        "simulator",
+        banner="DashBite order feed started",
+    )
 
 
 def main() -> None:

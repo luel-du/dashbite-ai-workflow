@@ -7,7 +7,6 @@ Does not import or call inference.
 from __future__ import annotations
 
 import json
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -19,6 +18,7 @@ from sklearn.model_selection import train_test_split
 
 from pipeline.config import Config, load_config
 from pipeline.paths import ensure_data_dirs, features_dir, models_dir
+from pipeline.runtime import run_polling_loop
 
 STATE_FILENAME = "train_state.json"
 FEATURE_COLUMNS = ["distance_km", "prep_minutes"]
@@ -145,10 +145,12 @@ def maybe_train(cfg: Config | None = None, base: Path | None = None) -> Path | N
 def run_loop(cfg: Config | None = None, base: Path | None = None) -> None:
     cfg = cfg or load_config()
     ensure_data_dirs(base)
-    print("DashBite training started (independent write path)")
-    while True:
-        maybe_train(cfg=cfg, base=base)
-        time.sleep(cfg.poll_interval_seconds)
+    run_polling_loop(
+        lambda: maybe_train(cfg=cfg, base=base),
+        cfg.poll_interval_seconds,
+        "train",
+        banner="DashBite training started (independent write path)",
+    )
 
 
 def main() -> None:

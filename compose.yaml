@@ -15,6 +15,9 @@ x-dashbite: &dashbite
     RANDOM_SEED: ${RANDOM_SEED:-42}
   volumes:
     - dashbite-data:/data
+  # On SIGTERM a stage finishes its current iteration and exits 0. The engine
+  # default grace period can be as short as 3 s, so allow more before SIGKILL.
+  stop_grace_period: 15s
 
 services:
   simulator:
