@@ -26,7 +26,7 @@ PIDS    := $(LOG_DIR)/pids
 help:
 	@echo "DashBite Make targets"
 	@echo ""
-	@echo "  make install              Create .venv and install requirements"
+	@echo "  make install              Create .venv and install pinned requirements (+ pytest)"
 	@echo "  make test                 Run full pytest suite (unit+regression+integration)"
 	@echo "  make test-unit            Run unit tests only"
 	@echo "  make test-regression      Run regression tests only"
@@ -45,10 +45,11 @@ help:
 
 install: $(VENV)/.installed
 
-$(VENV)/.installed: requirements.txt
+# constraints.txt pins every package to the versions the Docker image uses.
+$(VENV)/.installed: requirements.txt requirements-dev.txt constraints.txt
 	$(PYTHON) -m venv $(VENV)
 	$(PIP) install --upgrade pip
-	$(PIP) install -r requirements.txt
+	$(PIP) install -r requirements-dev.txt -c constraints.txt
 	@touch $@
 
 test: install

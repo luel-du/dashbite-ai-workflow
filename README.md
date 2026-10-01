@@ -29,8 +29,11 @@ Or manually:
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt -c constraints.txt
+export PYTHONPATH=.
 ```
+
+`requirements.txt` lists the runtime dependencies, `requirements-dev.txt` adds pytest, and `constraints.txt` pins every package to the versions the Docker image uses. `PYTHONPATH=.` makes the `pipeline` package importable; the `make` targets set it for you, and the manual `pytest` and `streamlit` commands below need it.
 
 ## Makefile shortcuts
 
@@ -49,15 +52,15 @@ Foreground single stages: `make simulator`, `make preprocess`, `make train`, `ma
 After each stage you implement or change, run the **full** suite:
 
 ```bash
-pytest
+make test
 ```
 
-That runs **unit**, **regression**, and **integration** tests together so new work cannot break older stages.
+That runs **unit**, **regression**, and **integration** tests together so new work cannot break older stages. `make test` is the gate: it uses the pinned `.venv` and sets `PYTHONPATH`. A bare `pytest` without `PYTHONPATH` fails the dashboard launch test, which checks that `pipeline` is importable the way `streamlit run` needs it.
 
 ```bash
-pytest -m unit
-pytest -m regression
-pytest -m integration
+make test-unit
+make test-regression
+make test-integration
 ```
 
 Layout:
@@ -106,8 +109,11 @@ python -m pipeline.infer
 Terminal 5 — dashboards:
 
 ```bash
-streamlit run pipeline/dashboard/app.py
+make dashboard
+# or: PYTHONPATH=. streamlit run pipeline/dashboard/app.py
 ```
+
+`streamlit run` does not put the working directory on the import path, so without `PYTHONPATH` the page fails with `ModuleNotFoundError: No module named 'pipeline'`.
 
 ## Config (environment)
 

@@ -1,13 +1,20 @@
+name: dashbite
+
+# Shared by the five pipeline services. DATA_ROOT=/data and PYTHONPATH=/app are
+# set in the image; the volume below is mounted at that DATA_ROOT.
 x-dashbite: &dashbite
-  build: .
-  image: dashbite:demo
+  build:
+    context: .
+    target: runtime
+  image: dashbite:local
   environment:
-    TRAIN_EVERY_N_EVENTS: "50"
-    BATCH_SIZE: "20"
-    POLL_INTERVAL_SECONDS: "2"
-    CORRUPT_BATCH_RATE: "0.25"
+    TRAIN_EVERY_N_EVENTS: ${TRAIN_EVERY_N_EVENTS:-50}
+    BATCH_SIZE: ${BATCH_SIZE:-20}
+    POLL_INTERVAL_SECONDS: ${POLL_INTERVAL_SECONDS:-2}
+    CORRUPT_BATCH_RATE: ${CORRUPT_BATCH_RATE:-0.25}
+    RANDOM_SEED: ${RANDOM_SEED:-42}
   volumes:
-    - dashbite-data:/app/data
+    - dashbite-data:/data
 
 services:
   simulator:
@@ -35,7 +42,16 @@ services:
       - --server.address=0.0.0.0
       - --server.port=8501
     ports:
-      - "127.0.0.1:8501:8501"
+      - "127.0.0.1:${DASHBOARD_PORT:-8501}:8501"
+
+  # Opt-in: docker compose --profile test run --rm --build tests
+  # No data volume: the suite only writes to its own temp directories.
+  tests:
+    profiles: [ test ]
+    build:
+      context: .
+      target: test
+    image: dashbite:test
 
 volumes:
   dashbite-data:
