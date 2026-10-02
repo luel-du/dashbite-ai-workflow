@@ -322,6 +322,10 @@ SMOKE PASSED
 The browser check matters because nothing automated covers it: the health endpoint reports
 `ok` even when the app fails to import, which is how the original image was broken.
 
+<img src="docs/dashboard.png" alt="DashBite dashboard served from the Compose stack, showing batch throughput and score distribution" width="800">
+
+*The Model Pulse page, served by the `dashboard` container and reading live data from the shared volume.*
+
 ## AI workflow reflection
 
 **Option and purpose.** Option 1: extend and containerize DashBite, the late-delivery prediction
@@ -337,8 +341,7 @@ docker compose --profile test run --rm --build tests   # the same suite in a con
 bash scripts/smoke.sh                                  # end-to-end check, cleans up after itself
 ```
 
-**How each role contributed.** Each role was a fresh conversation in Claude Code. The
-transcripts are in [`docs/transcripts/`](docs/transcripts/).
+**How each role contributed.** Each role was a fresh conversation in Claude Code.
 
 | Role | Contribution |
 |---|---|
@@ -388,7 +391,3 @@ tests pass and `make stop` exits 0.
   files in the repository, three separate conversations could work from the same reference, the
   Tester could judge the work without seeing the Builder's explanations, and I can check later
   why a decision was made.
-
-**Disclosure.** Besides the three role conversations, I used a separate AI chat as a second
-reviewer. It reran checks, pointed out edge cases, and helped me draft follow-up questions and
-this README text. I chose what to send and what to accept.
