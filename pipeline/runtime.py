@@ -6,6 +6,8 @@ import signal
 import threading
 from collections.abc import Callable
 
+from pipeline.health import write_heartbeat
+
 __all__ = ["STOP_SIGNALS", "run_polling_loop"]
 
 
@@ -27,6 +29,9 @@ def run_polling_loop(
     can exit 0. The handlers are installed before ``banner`` prints, so a signal
     sent once the banner is visible is never lost.
 
+    A heartbeat for ``stage`` is written once at start and after each
+    iteration (see ``pipeline.health``).
+
     Pass ``stop`` to control the loop directly (tests); no signal handlers are
     installed in that case.
     """
@@ -42,10 +47,12 @@ def run_polling_loop(
         previous = {sig: signal.signal(sig, _request_stop) for sig in STOP_SIGNALS}
 
     try:
+        write_heartbeat(stage)
         if banner:
             print(banner)
         while not stop.is_set():
             step()
+            write_heartbeat(stage)
             stop.wait(interval)
     finally:
         for sig, handler in previous.items():

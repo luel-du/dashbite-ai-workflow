@@ -2,15 +2,25 @@
 
 from __future__ import annotations
 
+import os
 import signal
 import threading
 import time
 
 import pytest
 
+from pipeline import health
 from pipeline.runtime import STOP_SIGNALS, run_polling_loop
 
 LONG_INTERVAL = 3600.0
+
+
+@pytest.fixture(autouse=True)
+def health_home(monkeypatch, tmp_path):
+    """The loop writes heartbeats: keep them in this test's own directory."""
+    directory = tmp_path / "health"
+    monkeypatch.setenv("HEALTH_DIR", str(directory))
+    return directory
 
 
 @pytest.mark.unit
@@ -79,6 +89,28 @@ def test_banner_prints_before_first_step_and_stop_message_after(capsys):
     run_polling_loop(step, LONG_INTERVAL, "demo", banner="demo started", stop=stop)
     assert seen_at_step == ["demo started\n"]
     assert capsys.readouterr().out == "demo stopped cleanly (stop requested)\n"
+
+
+@pytest.mark.unit
+def test_heartbeat_written_at_start_and_after_each_iteration(health_home):
+    stop = threading.Event()
+    path = health_home / "demo.heartbeat"
+    seen: list[bool] = []
+
+    def step() -> None:
+        # Written once at start, so it is already fresh inside the first step.
+        seen.append(health.is_healthy("demo"))
+        # Age it: only a write after this iteration can make it fresh again.
+        old = time.time() - 3600
+        os.utime(path, (old, old))
+        assert not health.is_healthy("demo")
+        if len(seen) == 2:
+            stop.set()
+
+    run_polling_loop(step, 0, "demo", stop=stop)
+    assert seen == [True, True]
+    assert health.is_healthy("demo")
+    assert [p.name for p in health_home.iterdir()] == ["demo.heartbeat"]
 
 
 @pytest.mark.unit

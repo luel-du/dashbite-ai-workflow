@@ -53,6 +53,9 @@ def test_stage_exits_zero_on_sigterm(stage, tmp_path):
             assert time.monotonic() < deadline, f"no banner from {stage}:\n{log.read_text()}"
             time.sleep(0.05)
 
+        # The heartbeat is written before the banner, into HEALTH_DIR only.
+        assert (tmp_path / "health" / f"{stage}.heartbeat").is_file()
+
         proc.send_signal(signal.SIGTERM)
         try:
             returncode = proc.wait(timeout=SHUTDOWN_TIMEOUT)

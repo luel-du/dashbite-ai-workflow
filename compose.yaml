@@ -13,28 +13,61 @@ x-dashbite: &dashbite
     POLL_INTERVAL_SECONDS: ${POLL_INTERVAL_SECONDS:-2}
     CORRUPT_BATCH_RATE: ${CORRUPT_BATCH_RATE:-0.25}
     RANDOM_SEED: ${RANDOM_SEED:-42}
+    HEALTH_MAX_AGE_SECONDS: ${HEALTH_MAX_AGE_SECONDS:-30}
   volumes:
     - dashbite-data:/data
   # On SIGTERM a stage finishes its current iteration and exits 0. The engine
   # default grace period can be as short as 3 s, so allow more before SIGKILL.
   stop_grace_period: 15s
+  # Known limitation: for about the first second (Python imports) a stage has
+  # no SIGTERM handler yet. As PID 1 it would ignore the signal, keep running
+  # and be SIGKILLed (137) after the grace period. With an init process as
+  # PID 1 that early stop ends the stage at once (143) while nothing is being
+  # written. Once started, the stage still handles SIGTERM itself and exits 0.
+  init: true
+  # Restarts crashes. Docker does not restart a container for being unhealthy.
+  restart: unless-stopped
+
+# Health checks are per service because one image needs two different probes.
+# Workers: the stage's heartbeat file (HEALTH_DIR, container-local) is newer
+# than HEALTH_MAX_AGE_SECONDS, so the loop is alive and not hung. It does not
+# prove the stage produced output. Dashboard: the Streamlit server answers
+# HTTP. It does not prove the app imports or renders.
+x-healthcheck-timing: &healthcheck-timing
+  interval: 10s
+  timeout: 5s
+  retries: 3
+  start_period: 30s
+  start_interval: 2s
 
 services:
   simulator:
     <<: *dashbite
     command: [ "python", "-m", "pipeline.simulator" ]
+    healthcheck:
+      <<: *healthcheck-timing
+      test: [ "CMD", "python", "-m", "pipeline.health", "simulator" ]
 
   preprocess:
     <<: *dashbite
     command: [ "python", "-m", "pipeline.preprocess" ]
+    healthcheck:
+      <<: *healthcheck-timing
+      test: [ "CMD", "python", "-m", "pipeline.health", "preprocess" ]
 
   train:
     <<: *dashbite
     command: [ "python", "-m", "pipeline.train" ]
+    healthcheck:
+      <<: *healthcheck-timing
+      test: [ "CMD", "python", "-m", "pipeline.health", "train" ]
 
   infer:
     <<: *dashbite
     command: [ "python", "-m", "pipeline.infer" ]
+    healthcheck:
+      <<: *healthcheck-timing
+      test: [ "CMD", "python", "-m", "pipeline.health", "infer" ]
 
   dashboard:
     <<: *dashbite
@@ -46,6 +79,13 @@ services:
       - --server.port=8501
     ports:
       - "127.0.0.1:${DASHBOARD_PORT:-8501}:8501"
+    healthcheck:
+      <<: *healthcheck-timing
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health', timeout=3).read()"
 
   # Opt-in: docker compose --profile test run --rm --build tests
   # No data volume: the suite only writes to its own temp directories.
