@@ -35,11 +35,24 @@ DEFAULT_MAX_AGE_SECONDS = 30.0
 
 
 def health_dir() -> Path:
-    """Return the heartbeat directory (default: <system temp dir>/dashbite-health)."""
+    """Return the heartbeat directory (default: <system temp dir>/dashbite-health).
+
+    ``HEALTH_DIR`` follows the same rule as ``DATA_ROOT``: a leading ``~`` is
+    expanded and a relative value raises ``ValueError``, because the stage and
+    the probe would each resolve it against their own working directory.
+    """
     env_dir = os.environ.get(HEALTH_DIR_ENV)
-    if env_dir:
-        return Path(env_dir)
-    return Path(tempfile.gettempdir()) / "dashbite-health"
+    if not env_dir:
+        return Path(tempfile.gettempdir()) / "dashbite-health"
+    # os.path.expanduser leaves "~" in place when there is no home to expand to.
+    directory = Path(os.path.expanduser(env_dir))
+    if not directory.is_absolute():
+        raise ValueError(
+            f"{HEALTH_DIR_ENV} must be an absolute path (a leading ~ is expanded), "
+            f"got {env_dir!r}. A relative path would resolve against the working "
+            "directory of each stage and of the probe."
+        )
+    return directory
 
 
 def heartbeat_path(stage: str) -> Path:
@@ -86,7 +99,11 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError:
         print(f"unhealthy: {MAX_AGE_ENV} is not a number", file=sys.stderr)
         return 1
-    age = heartbeat_age(stage)
+    try:
+        age = heartbeat_age(stage)
+    except ValueError as err:
+        print(f"unhealthy: {err}", file=sys.stderr)
+        return 1
     if age is None:
         print(f"unhealthy: no heartbeat for {stage} in {health_dir()}", file=sys.stderr)
         return 1

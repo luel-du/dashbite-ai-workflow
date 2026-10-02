@@ -90,6 +90,39 @@ def test_health_dir_default_and_env(monkeypatch, tmp_path):
 
 
 @pytest.mark.unit
+def test_health_dir_expands_leading_tilde(monkeypatch, tmp_path):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("HEALTH_DIR", "~/beats")
+    assert health.health_dir() == tmp_path / "beats"
+    assert health.write_heartbeat("simulator") == tmp_path / "beats" / "simulator.heartbeat"
+    assert health.is_healthy("simulator")
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "value",
+    ["beats", "./beats", "../beats", "~no_such_dashbite_user/beats"],
+)
+def test_relative_health_dir_is_rejected(monkeypatch, value):
+    monkeypatch.setenv("HEALTH_DIR", value)
+    with pytest.raises(ValueError, match="HEALTH_DIR must be an absolute path") as err:
+        health.health_dir()
+    assert repr(value) in str(err.value)
+
+
+@pytest.mark.unit
+def test_relative_health_dir_creates_nothing_and_probe_exits_1(monkeypatch, tmp_path, capsys):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("HEALTH_DIR", "beats")
+    with pytest.raises(ValueError, match="HEALTH_DIR must be an absolute path"):
+        health.write_heartbeat("simulator")
+    assert list(tmp_path.iterdir()) == []
+    # The probe reports the problem instead of raising.
+    assert health.main(["simulator"]) == 1
+    assert "HEALTH_DIR must be an absolute path" in capsys.readouterr().err
+
+
+@pytest.mark.unit
 def test_cli_exit_codes(capsys):
     assert health.main(["simulator"]) == 1  # missing
     assert "no heartbeat for simulator" in capsys.readouterr().err
