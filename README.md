@@ -261,4 +261,19 @@ Where this README and `docs/docker-k8s-guide.md` disagree, this README is author
 
 ## Manual smoke test
 
+I ran this myself on 2026-10-01 (Linux, Docker Desktop), after the Builder finished and before
+the Tester stage.
+
+| Step | Result |
+|---|---|
+| `bash scripts/smoke.sh` | All 14 checks passed: `SMOKE PASSED` |
+| Services | All five reported healthy and ran as uid 10001 |
+| Pipeline output | Raw files, features, quality log, a checkpoint and predictions appeared within 90 s |
+| Persistence | Raw files survived `down` then `up` (4 before, 5 after) |
+| Shutdown | All five services exited with code 0 on stop |
+| Dashboard in a browser | Opened `http://127.0.0.1:8501`: the page loaded and worked, with no import error |
+
+The browser check matters because nothing automated covers it: the health endpoint reports
+`ok` even when the app fails to import, which is how the original image was broken.
+
 ## AI workflow reflection
