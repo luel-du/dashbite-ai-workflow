@@ -3,6 +3,14 @@
 > Based on the [DashBite teaching demo](https://github.com/ammylin/TestingAndContainerizationDemo)
 > by Kedar and Ammy Lin, introduced in class.
 
+**Repository B, Option 1: extend and containerize DashBite.** This repository takes the class
+demo and makes it ready to run in containers, built through an Architect, Builder, Tester
+workflow with an AI assistant. Added on top of the demo: a multi-stage non-root image, a Compose
+stack with health checks and graceful shutdown, a configurable data folder, pinned dependencies,
+and a test suite that runs on the host and in a container. To run it, see
+[Run with Docker](#run-with-docker). For how it was built, see
+[AI workflow reflection](#ai-workflow-reflection).
+
 Teaching demo of a modular data + ML application. **DashBite** predicts whether a food-delivery order will be **late**.
 
 Stages are separate Python modules that share folders under `data/` (or `DATA_ROOT`). Training and inference are **independent processes** coupled only by timestamped checkpoints in `data/models/`. Inference always uses the **newest** checkpoint. The stages run directly on the host or as containers built from one image; see [Run with Docker](#run-with-docker).
@@ -279,7 +287,108 @@ the Tester stage.
 | Shutdown | All five services exited with code 0 on stop |
 | Dashboard in a browser | Opened `http://127.0.0.1:8501`: the page loaded and worked, with no import error |
 
+<details>
+<summary>Output of <code>bash scripts/smoke.sh</code> from that run</summary>
+
+```text
+== build and start (project dashbite-smoke, port 8501)
+== checks
+PASS  simulator is healthy
+PASS  preprocess is healthy
+PASS  train is healthy
+PASS  infer is healthy
+PASS  dashboard is healthy
+PASS  containers run as uid 10001
+PASS  pytest is not in the runtime image
+PASS  dashboard answers on http://127.0.0.1:8501/_stcore/health
+PASS  dashboard app imports without the working directory on sys.path
+PASS  raw, features, quality log, checkpoint and predictions exist within 90s
+PASS  data is owned by uid 10001
+PASS  heartbeat files are not on the data volume
+== persistence: down (volume kept), then up
+PASS  raw files survive down/up (4 before, 5 after)
+== graceful shutdown: stop after startup
+dashboard: exited, exit code 0
+infer: exited, exit code 0
+preprocess: exited, exit code 0
+simulator: exited, exit code 0
+train: exited, exit code 0
+PASS  all five services exited with code 0
+SMOKE PASSED
+```
+
+</details>
+
 The browser check matters because nothing automated covers it: the health endpoint reports
 `ok` even when the app fails to import, which is how the original image was broken.
 
 ## AI workflow reflection
+
+**Option and purpose.** Option 1: extend and containerize DashBite, the late-delivery prediction
+pipeline from class. The goal was a stack that builds, starts, reports its health, stops cleanly
+and keeps its data, with tests proving each of those.
+
+**Install, run, test.**
+
+```bash
+make install && make test                              # host: 93 tests
+docker compose up -d --build --wait                    # five services, all healthy
+docker compose --profile test run --rm --build tests   # the same suite in a container
+bash scripts/smoke.sh                                  # end-to-end check, cleans up after itself
+```
+
+**How each role contributed.** Each role was a fresh conversation in Claude Code. The
+transcripts are in [`docs/transcripts/`](docs/transcripts/).
+
+| Role | Contribution |
+|---|---|
+| Architect | Read the code and wrote [`docs/plan.md`](docs/plan.md): findings, options with trade-offs, five milestones and exact verification commands. It found that the dashboard in the class image could not import its own package. |
+| Builder | Implemented the plan one milestone at a time, stopping for review after each. Tests grew from 33 to 78. It found that the plan's own shutdown check failed and stopped to ask. Approved differences are in [`docs/changes-from-plan.md`](docs/changes-from-plan.md). |
+| Tester | Worked only from the plan, the changes file and the code. It confirmed every requirement, then found six problems by trying to break things, including a `make stop` bug that predates this work. |
+
+**Recommendations I accepted.**
+
+- The Builder noticed that the documented test command could silently run a stale image, and
+  proposed `--build`. That is now the documented command.
+- When a stop sent in the first second killed every service with exit code 137, the Builder
+  proposed adding an init process next to the signal handlers. I accepted it on the condition
+  that it tested the combination first.
+- The Architect advised against startup ordering between services, because each stage already
+  tolerates missing input.
+
+**Recommendations I changed or rejected.**
+
+- I did not accept the first draft plan as written. Its main finding said the dashboard
+  "probably" crashed, and Docker had not been run. I had the Architect reproduce it first. The
+  crash was real, but its shutdown timing was wrong (3 s, not 10 s), and the run showed that the
+  health endpoint answers `ok` while the app is broken. The plan changed because of that.
+- Rejected: read-only root filesystem hardening. It depended on Streamlit behaviour nobody had
+  tested and added little here.
+- Rejected: rewriting the class Docker guide. It is left untouched and the README is the
+  reference.
+- Declined two Tester findings. The host dashboard failure comes from a monitoring agent on my
+  laptop, not from the repository. The missing render test was cut for time, so it is listed
+  under known limitations and covered by a manual browser check.
+- The Builder once implemented an answer before I had decided. I told it to answer first and
+  wait, and it did from then on.
+
+**How I verified the result independently.** I ran the smoke script and opened the dashboard in a
+browser myself (see [Manual smoke test](#manual-smoke-test)). After each milestone the host
+tests, the containerized tests, the negative control and the container checks were rerun outside
+the Builder's conversation before I committed. The Tester's fixes were rerun the same way: 93
+tests pass and `make stop` exits 0.
+
+**What I learned.**
+
+- **Refine the question instead of accepting the first answer.** The most useful moments came
+  from follow-up questions: asking for a reproduction, asking what happens with `~` or a
+  relative path in `DATA_ROOT`, asking which test would have caught the dashboard bug. Each one
+  changed the outcome.
+- **Write the plan down and keep it.** Because the plan and the list of approved changes are
+  files in the repository, three separate conversations could work from the same reference, the
+  Tester could judge the work without seeing the Builder's explanations, and I can check later
+  why a decision was made.
+
+**Disclosure.** Besides the three role conversations, I used a separate AI chat as a second
+reviewer. It reran checks, pointed out edge cases, and helped me draft follow-up questions and
+this README text. I chose what to send and what to accept.
