@@ -9,6 +9,8 @@ The "Approval" column says how each difference was accepted:
 - **Reviewed**: a small Builder decision, reported at the milestone and accepted
   with it.
 - **M5**: made in the last milestone and reported in the hand-off.
+- **Tester**: made in the Tester stage, after the Tester's report, at the
+  repository owner's request.
 
 ## Behaviour and design
 
@@ -45,6 +47,14 @@ The "Approval" column says how each difference was accepted:
 | 24 | M5 | `scripts/smoke.sh` fails fast if port 8501 is busy. | It honours `DASHBOARD_PORT` (default 8501), fixes the pipeline tunables itself, and accepts `SMOKE_START_TIMEOUT` and `SMOKE_OUTPUT_TIMEOUT`. It also checks persistence across `down`/`up` and exit code 0 after a stop. | The run should not depend on the caller's shell or need port 8501, and the plan calls the script the only check against the real runtime containers. | M5 |
 | 25 | M5 | README env table in the "Run with Docker" section. | Two tables: host defaults under "Config (environment)", Compose defaults under "Run with Docker". | The defaults differ (for example `TRAIN_EVERY_N_EVENTS` is 2000 on the host and 50 in Compose). | M5 |
 | 26 | M5 | — | The README also documents how to re-pin `constraints.txt` and the smoke script. | The pinning file needs an empty-file bootstrap that is not obvious. | M5 |
+
+## Made in the Tester stage
+
+| # | Milestone | Plan | Implementation | Why | Approval |
+|---|---|---|---|---|---|
+| 27 | Tester | `HEALTH_MAX_AGE_SECONDS` is configurable (risk 3); no limits on its value. | It must be a positive, finite number. Otherwise the probe prints the reason and exits 1, and `is_healthy()` raises `ValueError`. Covered by new cases in `tests/unit/test_health.py`. | With `nan` or `inf` the probe reported a heartbeat of any age as healthy, and for `nan` it disagreed with `is_healthy()`. | Tester |
+| 28 | Tester | `POLL_INTERVAL_SECONDS` is used as given. | `Config.from_env` rejects zero, negative, `nan` and `inf`: the stage stops with a `ValueError`. Covered by the new `tests/unit/test_config_validation.py`. | With `0` every worker polled without a pause (over 100% CPU each), and preprocess was killed with exit 137 on stop. | Tester |
+| 29 | Tester | The `stop` target in the `Makefile` is not mentioned and was left as it was. | Its five `pkill -f` patterns are written as `[p]ython ...` and `[s]treamlit ...`. | On Linux `pkill -f` matched the recipe's own shell and killed it, so `make stop` and `make run` (which depends on it) failed with exit 2. | Tester |
 
 ## Tests beyond the plan's lists
 

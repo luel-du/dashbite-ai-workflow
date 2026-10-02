@@ -149,6 +149,34 @@ def test_cli_bad_usage_and_bad_threshold_exit_1(monkeypatch, capsys):
 
 
 @pytest.mark.unit
+@pytest.mark.parametrize("value", ["nan", "inf", "-inf", "0", "-1"])
+def test_threshold_must_be_positive_and_finite(monkeypatch, capsys, value):
+    # nan and inf used to make a heartbeat of any age count as fresh.
+    health.write_heartbeat("simulator")
+    _age("simulator", 7200)
+    monkeypatch.setenv("HEALTH_MAX_AGE_SECONDS", value)
+
+    assert health.main(["simulator"]) == 1
+    err = capsys.readouterr().err
+    assert "HEALTH_MAX_AGE_SECONDS must be a positive, finite number" in err
+    assert repr(value) in err
+
+    # The function and the probe agree: neither reports healthy.
+    with pytest.raises(ValueError, match="must be a positive, finite number"):
+        health.is_healthy("simulator")
+
+
+@pytest.mark.unit
+def test_probe_and_is_healthy_agree_on_valid_thresholds(monkeypatch):
+    health.write_heartbeat("simulator")
+    _age("simulator", 45)
+    for value, expected in (("60", True), ("10", False), (" 60 ", True), ("1e9", True)):
+        monkeypatch.setenv("HEALTH_MAX_AGE_SECONDS", value)
+        assert health.is_healthy("simulator") is expected
+        assert health.main(["simulator"]) == (0 if expected else 1)
+
+
+@pytest.mark.unit
 def test_probe_command_exit_codes(health_home):
     """The command the Compose health check runs: python -m pipeline.health <stage>."""
 

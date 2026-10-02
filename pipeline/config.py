@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -24,14 +25,20 @@ class Config:
 
     @classmethod
     def from_env(cls) -> "Config":
+        poll_raw = os.environ.get("POLL_INTERVAL_SECONDS", "2.0")
+        poll_interval_seconds = float(poll_raw)
+        # Zero or less would spin every stage without a pause between polls.
+        if not math.isfinite(poll_interval_seconds) or poll_interval_seconds <= 0:
+            raise ValueError(
+                "POLL_INTERVAL_SECONDS must be a positive, finite number, "
+                f"got {poll_raw!r}"
+            )
         return cls(
             train_every_n_events=int(
                 os.environ.get("TRAIN_EVERY_N_EVENTS", "2000")
             ),
             batch_size=int(os.environ.get("BATCH_SIZE", "50")),
-            poll_interval_seconds=float(
-                os.environ.get("POLL_INTERVAL_SECONDS", "2.0")
-            ),
+            poll_interval_seconds=poll_interval_seconds,
             random_seed=int(os.environ.get("RANDOM_SEED", "42")),
             corrupt_batch_rate=float(
                 os.environ.get("CORRUPT_BATCH_RATE", "0.25")

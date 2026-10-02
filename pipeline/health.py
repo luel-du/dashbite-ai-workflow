@@ -9,6 +9,7 @@ scikit-learn or other pipeline modules here.
 
 from __future__ import annotations
 
+import math
 import os
 import sys
 import tempfile
@@ -77,7 +78,24 @@ def heartbeat_age(stage: str) -> float | None:
 
 
 def max_age_seconds() -> float:
-    return float(os.environ.get(MAX_AGE_ENV) or DEFAULT_MAX_AGE_SECONDS)
+    """Return the heartbeat threshold (default 30 seconds).
+
+    ``HEALTH_MAX_AGE_SECONDS`` must be a positive, finite number. Anything else
+    raises ``ValueError``: ``nan`` or ``inf`` would make every heartbeat count
+    as fresh, however old.
+    """
+    raw = os.environ.get(MAX_AGE_ENV)
+    if not raw:
+        return DEFAULT_MAX_AGE_SECONDS
+    try:
+        value = float(raw)
+    except ValueError:
+        raise ValueError(f"{MAX_AGE_ENV} is not a number, got {raw!r}") from None
+    if not math.isfinite(value) or value <= 0:
+        raise ValueError(
+            f"{MAX_AGE_ENV} must be a positive, finite number, got {raw!r}"
+        )
+    return value
 
 
 def is_healthy(stage: str, max_age: float | None = None) -> bool:
@@ -96,10 +114,6 @@ def main(argv: list[str] | None = None) -> int:
     stage = args[0]
     try:
         limit = max_age_seconds()
-    except ValueError:
-        print(f"unhealthy: {MAX_AGE_ENV} is not a number", file=sys.stderr)
-        return 1
-    try:
         age = heartbeat_age(stage)
     except ValueError as err:
         print(f"unhealthy: {err}", file=sys.stderr)
@@ -107,7 +121,8 @@ def main(argv: list[str] | None = None) -> int:
     if age is None:
         print(f"unhealthy: no heartbeat for {stage} in {health_dir()}", file=sys.stderr)
         return 1
-    if age > limit:
+    # Same comparison as is_healthy(), so the probe and the function agree.
+    if not age <= limit:
         print(
             f"unhealthy: {stage} heartbeat is {age:.1f}s old (max {limit:g}s)",
             file=sys.stderr,

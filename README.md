@@ -75,6 +75,8 @@ tests/
 
 ## Run the pipeline (separate terminals)
 
+In each terminal, activate the virtual environment first (`source .venv/bin/activate`), or use the matching `make` target (`make simulator`, `make preprocess`, `make train`, `make infer`), which uses `.venv` for you. Without it, `python` is either missing or lacks the dependencies.
+
 Use a small retrain threshold for demos:
 
 ```bash
@@ -121,14 +123,16 @@ make dashboard
 |----------|---------|---------|
 | `TRAIN_EVERY_N_EVENTS` | `2000` | Retrain after this many **new** labeled rows |
 | `BATCH_SIZE` | `50` | Orders per simulator tick |
-| `POLL_INTERVAL_SECONDS` | `2.0` | Sleep between polls/ticks |
+| `POLL_INTERVAL_SECONDS` | `2.0` | Sleep between polls/ticks; must be greater than 0 |
 | `RANDOM_SEED` | `42` | Training seed |
 | `CORRUPT_BATCH_RATE` | `0.25` | Fraction of batches that include NaNs / bad types |
 | `DATA_ROOT` | `<project>/data` | The data directory itself (holds `raw/`, `features/`, ...) |
 | `HEALTH_DIR` | `<system temp dir>/dashbite-health` | Where each stage touches its heartbeat file |
-| `HEALTH_MAX_AGE_SECONDS` | `30` | A heartbeat older than this is unhealthy |
+| `HEALTH_MAX_AGE_SECONDS` | `30` | A heartbeat older than this is unhealthy; must be greater than 0 |
 
 `DATA_ROOT` and `HEALTH_DIR` must be absolute paths. A leading `~` is expanded; a relative value stops the stage with an error, because each process would resolve it against its own working directory. An empty value counts as unset.
+
+`POLL_INTERVAL_SECONDS` and `HEALTH_MAX_AGE_SECONDS` must be positive, finite numbers. A poll interval of `0` or less (or `nan`, `inf`) stops the stage with an error, because it would poll without a pause. With an invalid threshold the health probe reports unhealthy and exits 1.
 
 Preprocess logs per-batch **throughput** and **field-level failures** to `data/quality/batch_quality.csv`. Model Pulse shows these live.
 
@@ -164,7 +168,7 @@ Compose reads these from your shell and falls back to the defaults below, for ex
 |----------|-----------------|---------|
 | `TRAIN_EVERY_N_EVENTS` | `50` | Retrain after this many **new** labeled rows |
 | `BATCH_SIZE` | `20` | Orders per simulator tick |
-| `POLL_INTERVAL_SECONDS` | `2` | Wait between polls/ticks |
+| `POLL_INTERVAL_SECONDS` | `2` | Wait between polls/ticks; must be greater than 0, or the workers stop with an error |
 | `CORRUPT_BATCH_RATE` | `0.25` | Fraction of batches that include NaNs / bad types |
 | `RANDOM_SEED` | `42` | Training seed |
 | `HEALTH_MAX_AGE_SECONDS` | `30` | A worker whose heartbeat is older than this is unhealthy. Must be larger than `POLL_INTERVAL_SECONDS` plus the time one iteration takes, or healthy workers are reported unhealthy between iterations |
@@ -247,6 +251,8 @@ The earlier Compose file had no project name, so its volume is `testingandcontai
 - **Bind mounts.** Mounting a host directory instead of the named volume hits uid mismatches on Linux.
 - **Test image is not the runtime image.** They share the `base` stage, but only the smoke script checks the real runtime containers.
 - **Pins come from a Linux image.** `constraints.txt` may not install on macOS or Windows hosts.
+- **No automated check that the dashboard shows the data.** The tests and the smoke script check that the dashboard app imports and that the server answers, not that the pages show the pipeline's data. If the dashboard stopped honouring `DATA_ROOT`, it would show empty pages in the container while every check stayed green. The render test that would catch this was cut for time. The dashboard was checked by hand instead: both pages were opened in a browser against the running containers and showed live data.
+- **No test that the stop handlers are installed before the start banner.** The shutdown test sends SIGTERM as soon as a stage prints its banner and relies on that order, but nothing asserts the order directly. A regression would show up as an occasional failure of that test rather than a clear one.
 
 ### This README and the Docker guide
 

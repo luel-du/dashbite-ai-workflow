@@ -101,11 +101,13 @@ stop:
 			rm -f "$$f"; \
 		done; \
 	fi
-	@pkill -f "python -m pipeline.simulator" 2>/dev/null || true
-	@pkill -f "python -m pipeline.preprocess" 2>/dev/null || true
-	@pkill -f "python -m pipeline.train" 2>/dev/null || true
-	@pkill -f "python -m pipeline.infer" 2>/dev/null || true
-	@pkill -f "streamlit run pipeline/dashboard/app.py" 2>/dev/null || true
+	@# The [x] keeps each pattern from matching the shell that runs this recipe:
+	@# on Linux, pkill -f would otherwise kill it and make would stop with an error.
+	@pkill -f "[p]ython -m pipeline.simulator" 2>/dev/null || true
+	@pkill -f "[p]ython -m pipeline.preprocess" 2>/dev/null || true
+	@pkill -f "[p]ython -m pipeline.train" 2>/dev/null || true
+	@pkill -f "[p]ython -m pipeline.infer" 2>/dev/null || true
+	@pkill -f "[s]treamlit run pipeline/dashboard/app.py" 2>/dev/null || true
 	@echo "Pipeline stopped."
 
 # Cleans the directory the stages write to: DATA_ROOT if set, else data/.
